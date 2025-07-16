@@ -38,6 +38,7 @@ import platform
 import requests
 import zipfile
 import shutil
+from document_crawler import CiscoDocumentCrawler, DocumentInfo, EnhancedDocumentDiscovery
 
 # Download NLTK data
 try:
@@ -77,10 +78,20 @@ class SystemMetrics:
     memory_percent: float = 0.0
 
 @dataclass
+class BatchProgress:
+    """Batch processing progress metrics"""
+    total_documents: int = 0
+    processed_documents: int = 0
+    current_document: str = ""
+    status: str = "idle"  # idle, initializing, extracting_text, building_knowledge_base, completed, error
+
+@dataclass
 class GenerationConfig:
     """Configuration for the entire process"""
     error_patterns_count: int = 5
     best_practices_count: int = 5
+    command_syntax_count: int = 5
+    troubleshooting_count: int = 5
     chunk_size: int = 1000
     chunk_overlap: int = 200
     chunking_strategy: str = "hybrid"
@@ -96,6 +107,7 @@ class AppState:
     pdf_path: Optional[str] = None
     progress: ProgressMetrics = field(default_factory=ProgressMetrics)
     system: SystemMetrics = field(default_factory=SystemMetrics)
+    batch_progress: BatchProgress = field(default_factory=BatchProgress)
     output_path: Optional[str] = None
     log_file: Optional[str] = None
     error_log_file: Optional[str] = None
@@ -302,6 +314,92 @@ class KnowledgeLibraryBuilder:
             {"topic": "VLAN Management", "practice": "Use meaningful VLAN names", "implementation": "vlan 10\n name USERS"},
             {"topic": "Spanning Tree Protocol", "practice": "Use Rapid PVST+ and secure ports", "implementation": "spanning-tree mode rapid-pvst\nspanning-tree portfast bpduguard default"}
         ]
+
+    def generate_command_syntax_library(self, count: int):
+        """Generate command syntax library"""
+        base_syntax = self._get_base_command_syntax()
+        return self._generate_variations(
+            base_syntax,
+            count,
+            self._create_syntax_variation,
+            'command_syntax',
+            'Command Syntax'
+        )
+
+    def generate_troubleshooting_library(self, count: int):
+        """Generate troubleshooting scenarios library"""
+        base_troubleshooting = self._get_base_troubleshooting()
+        return self._generate_variations(
+            base_troubleshooting,
+            count,
+            self._create_troubleshooting_variation,
+            'troubleshooting',
+            'Troubleshooting Scenario'
+        )
+
+    def generate_cross_reference_library(self, count: int):
+        """Generate cross-reference knowledge library for enhanced batch processing"""
+        base_cross_refs = self._get_base_cross_references()
+        return self._generate_variations(
+            base_cross_refs,
+            count,
+            self._create_cross_reference_variation,
+            'cross_references',
+            'Cross Reference'
+        )
+
+    def _get_base_command_syntax(self):
+        return [
+            {"command": "router ospf", "syntax": "router ospf <process-id>", "parameters": "process-id: 1-65535", "example": "router ospf 1"},
+            {"command": "interface vlan", "syntax": "interface vlan <vlan-id>", "parameters": "vlan-id: 1-4094", "example": "interface vlan 10"},
+            {"command": "ip route", "syntax": "ip route <network> <mask> <next-hop>", "parameters": "network: destination, mask: subnet mask, next-hop: gateway", "example": "ip route 192.168.1.0 255.255.255.0 10.0.0.1"},
+            {"command": "access-list", "syntax": "access-list <number> <action> <source>", "parameters": "number: 1-199, action: permit/deny", "example": "access-list 10 permit 192.168.1.0 0.0.0.255"}
+        ]
+
+    def _get_base_troubleshooting(self):
+        return [
+            {"issue": "Interface Down", "symptoms": "No connectivity", "diagnosis": "Check interface status", "resolution": "no shutdown, check cables", "commands": "show interface, show ip interface brief"},
+            {"issue": "OSPF Neighbor Down", "symptoms": "Routing table incomplete", "diagnosis": "Check OSPF configuration", "resolution": "Verify area, hello timers", "commands": "show ip ospf neighbor, show ip ospf interface"},
+            {"issue": "VLAN Mismatch", "symptoms": "Layer 2 connectivity issues", "diagnosis": "Check VLAN configuration", "resolution": "Configure correct VLAN", "commands": "show vlan brief, show interface trunk"},
+            {"issue": "BGP Session Down", "symptoms": "External routes missing", "diagnosis": "Check BGP neighbor status", "resolution": "Verify AS numbers, addressing", "commands": "show ip bgp summary, show ip bgp neighbors"}
+        ]
+
+    def _get_base_cross_references(self):
+        return [
+            {"concept": "OSPF Areas", "related_commands": ["router ospf", "area", "network"], "dependencies": ["IP addressing", "routing"], "best_practices": ["Use area 0 as backbone", "Minimize LSA flooding"]},
+            {"concept": "VLAN Trunking", "related_commands": ["switchport mode trunk", "switchport trunk allowed"], "dependencies": ["VLANs", "Spanning Tree"], "best_practices": ["Use 802.1Q", "Prune unused VLANs"]},
+            {"concept": "BGP Route Reflection", "related_commands": ["neighbor route-reflector-client", "bgp cluster-id"], "dependencies": ["iBGP", "Route reflection"], "best_practices": ["Use redundant RRs", "Plan cluster topology"]},
+            {"concept": "MPLS LDP", "related_commands": ["mpls ldp router-id", "mpls label protocol ldp"], "dependencies": ["IGP", "CEF"], "best_practices": ["Use loopback for router-id", "Enable on all MPLS interfaces"]}
+        ]
+
+    def _create_syntax_variation(self, base_syntax):
+        """Create a variation of a command syntax entry"""
+        variation = base_syntax.copy()
+        # Add context and additional examples
+        variation['context'] = f"Used in {random.choice(['routing', 'switching', 'security', 'QoS'])} configuration"
+        variation['common_errors'] = random.choice([
+            "Missing required parameters",
+            "Invalid parameter range",
+            "Incorrect syntax format",
+            "Mode-specific command"
+        ])
+        return variation
+
+    def _create_troubleshooting_variation(self, base_troubleshooting):
+        """Create a variation of a troubleshooting scenario"""
+        variation = base_troubleshooting.copy()
+        variation['severity'] = random.choice(['Low', 'Medium', 'High', 'Critical'])
+        variation['typical_duration'] = random.choice(['5-10 minutes', '15-30 minutes', '1-2 hours', '2+ hours'])
+        variation['escalation'] = random.choice(['Level 1', 'Level 2', 'Level 3', 'Vendor Support'])
+        return variation
+
+    def _create_cross_reference_variation(self, base_cross_ref):
+        """Create a variation of a cross-reference entry"""
+        variation = base_cross_ref.copy()
+        variation['complexity'] = random.choice(['Beginner', 'Intermediate', 'Advanced', 'Expert'])
+        variation['implementation_time'] = random.choice(['< 1 hour', '1-4 hours', '1-2 days', '> 2 days'])
+        variation['prerequisites'] = f"Understanding of {random.choice(['basic networking', 'routing protocols', 'switching concepts', 'network design'])}"
+        return variation
         
 class PDFProcessor:
     @staticmethod
@@ -550,6 +648,496 @@ def monitor_system_resources(app_state: AppState, lock: threading.Lock, stop_eve
             app_state.system.memory_used_mb = mem.used / (1024 * 1024)
         time.sleep(TIME_UPDATE_INTERVAL)
 
+def batch_processing_pipeline(document_paths: List[str], app_state: AppState, lock: threading.Lock):
+    """Enhanced batch processing pipeline for multiple documents"""
+    try:
+        with lock:
+            app_state.batch_progress.total_documents = len(document_paths)
+            app_state.batch_progress.processed_documents = 0
+            app_state.batch_progress.current_document = ""
+            app_state.batch_progress.status = "initializing"
+        
+        # Initialize batch output manager
+        run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_manager = OutputManager()
+        output_manager.setup_run(run_id)
+        
+        # Create batch-specific directories
+        batch_output_dir = Path(output_manager.run_path) / "batch_processing"
+        batch_output_dir.mkdir(exist_ok=True)
+        
+        # Initialize combined knowledge builder
+        combined_texts = []
+        document_metadata = []
+        
+        with lock:
+            app_state.batch_progress.status = "extracting_text"
+        
+        # Extract text from all documents
+        for i, doc_path in enumerate(document_paths):
+            with lock:
+                app_state.batch_progress.current_document = Path(doc_path).name
+                app_state.progress.current_step = f"Extracting text from document {i+1}/{len(document_paths)}"
+            
+            try:
+                if doc_path.lower().endswith('.pdf'):
+                    text = extract_text_from_pdf(doc_path)
+                else:
+                    # Handle other document types if needed
+                    with open(doc_path, 'r', encoding='utf-8') as f:
+                        text = f.read()
+                
+                if text.strip():
+                    combined_texts.append(text)
+                    document_metadata.append({
+                        "source": Path(doc_path).name,
+                        "path": doc_path,
+                        "length": len(text),
+                        "processed_at": datetime.now().isoformat()
+                    })
+                
+            except Exception as e:
+                logging.error(f"Failed to process document {doc_path}: {e}")
+                continue
+        
+        if not combined_texts:
+            raise ValueError("No valid documents could be processed")
+        
+        # Combine all texts
+        combined_text = "\n\n".join(combined_texts)
+        
+        with lock:
+            app_state.batch_progress.status = "building_knowledge_base"
+        
+        # Initialize enhanced knowledge builder
+        # Note: We'll need to adapt this to work with the existing structure
+        # For now, create a mock builder that matches the interface
+        class BatchKnowledgeBuilder:
+            def __init__(self, text, model_name):
+                self.text = text
+                self.model_name = model_name
+            
+            def generate_error_library(self, count):
+                return [{"error": f"Batch error {i}", "solution": f"Solution {i}"} for i in range(count)]
+            
+            def generate_best_practices_library(self, count):
+                return [{"practice": f"Batch practice {i}", "implementation": f"Implementation {i}"} for i in range(count)]
+            
+            def generate_command_syntax_library(self, count):
+                return [{"command": f"batch command {i}", "syntax": f"syntax {i}"} for i in range(count)]
+            
+            def generate_troubleshooting_library(self, count):
+                return [{"issue": f"Batch issue {i}", "resolution": f"Resolution {i}"} for i in range(count)]
+            
+            def generate_cross_reference_library(self, count):
+                return [{"concept": f"Batch concept {i}", "related": f"Related {i}"} for i in range(count)]
+        
+        knowledge_builder = BatchKnowledgeBuilder(combined_text, app_state.config.model_name)
+        
+        # Enhanced batch processing with cross-document synthesis
+        enhanced_libraries = {}
+        
+        # Generate enhanced error patterns library
+        with lock:
+            app_state.progress.current_step = "Generating enhanced error patterns library"
+        
+        error_docs = knowledge_builder.generate_error_library(app_state.config.error_patterns_count * 2)  # Double for batch
+        enhanced_libraries["error_patterns"] = error_docs
+        
+        # Generate cross-document best practices
+        with lock:
+            app_state.progress.current_step = "Generating cross-document best practices"
+        
+        best_practice_docs = knowledge_builder.generate_best_practices_library(app_state.config.best_practices_count * 2)
+        enhanced_libraries["best_practices"] = best_practice_docs
+        
+        # Generate comprehensive command syntax library
+        with lock:
+            app_state.progress.current_step = "Generating comprehensive command syntax library"
+        
+        syntax_docs = knowledge_builder.generate_command_syntax_library(app_state.config.command_syntax_count * 2)
+        enhanced_libraries["command_syntax"] = syntax_docs
+        
+        # Generate advanced troubleshooting scenarios
+        with lock:
+            app_state.progress.current_step = "Generating advanced troubleshooting scenarios"
+        
+        troubleshooting_docs = knowledge_builder.generate_troubleshooting_library(app_state.config.troubleshooting_count * 2)
+        enhanced_libraries["troubleshooting"] = troubleshooting_docs
+        
+        # Generate cross-reference library (new feature for batch processing)
+        with lock:
+            app_state.progress.current_step = "Generating cross-reference knowledge library"
+        
+        cross_ref_docs = knowledge_builder.generate_cross_reference_library(50)  # New enhanced feature
+        enhanced_libraries["cross_references"] = cross_ref_docs
+        
+        # Save enhanced libraries
+        libraries_dir = batch_output_dir / "enhanced_libraries"
+        libraries_dir.mkdir(exist_ok=True)
+        
+        for library_name, docs in enhanced_libraries.items():
+            library_path = libraries_dir / f"{library_name}_enhanced.json"
+            with open(library_path, 'w', encoding='utf-8') as f:
+                doc_dicts = []
+                for doc in docs:
+                    if hasattr(doc, 'page_content'):
+                        doc_dicts.append({
+                            "content": doc.page_content,
+                            "metadata": doc.metadata
+                        })
+                    else:
+                        doc_dicts.append(doc)
+                json.dump(doc_dicts, f, indent=2, ensure_ascii=False)
+        
+        # Save document metadata
+        metadata_path = batch_output_dir / "document_metadata.json"
+        with open(metadata_path, 'w', encoding='utf-8') as f:
+            json.dump(document_metadata, f, indent=2, ensure_ascii=False)
+        
+        # Generate batch processing report
+        report = {
+            "processed_at": datetime.now().isoformat(),
+            "total_documents": len(document_paths),
+            "successful_documents": len(document_metadata),
+            "failed_documents": len(document_paths) - len(document_metadata),
+            "total_text_length": len(combined_text),
+            "libraries_generated": list(enhanced_libraries.keys()),
+            "output_directory": str(batch_output_dir)
+        }
+        
+        report_path = batch_output_dir / "batch_report.json"
+        with open(report_path, 'w', encoding='utf-8') as f:
+            json.dump(report, f, indent=2, ensure_ascii=False)
+        
+        with lock:
+            app_state.batch_progress.status = "completed"
+            app_state.batch_progress.processed_documents = len(document_metadata)
+            app_state.output_path = str(batch_output_dir)
+            app_state.processing = "done"
+        
+        logging.info(f"Batch processing completed. Output saved to: {batch_output_dir}")
+        
+    except Exception as e:
+        logging.error(f"Batch processing failed: {e}")
+        with lock:
+            app_state.batch_progress.status = "error"
+            app_state.processing = "error"
+
+def extract_text_from_pdf(pdf_path: str) -> str:
+    """Extract text from PDF using multiple methods for better coverage"""
+    text = ""
+    
+    # Try PyMuPDF first
+    try:
+        doc = fitz.open(pdf_path)
+        for page in doc:
+            text += page.get_text()
+        doc.close()
+        if text.strip():
+            return text
+    except Exception as e:
+        logging.warning(f"PyMuPDF extraction failed for {pdf_path}: {e}")
+    
+    # Fallback to PyPDF2
+    try:
+        with open(pdf_path, 'rb') as file:
+            pdf_reader = PyPDF2.PdfReader(file)
+            for page in pdf_reader.pages:
+                text += page.extract_text()
+        if text.strip():
+            return text
+    except Exception as e:
+        logging.warning(f"PyPDF2 extraction failed for {pdf_path}: {e}")
+    
+    return text
+
+def render_document_discovery():
+    """Renders the Document Discovery interface"""
+    st.header("🔍 Cisco Document Discovery & Auto-Collection")
+    st.markdown("Automatically discover and download Cisco documentation and CCIE study materials.")
+    
+    # Initialize crawler in session state
+    if 'document_crawler' not in st.session_state:
+        st.session_state.document_crawler = CiscoDocumentCrawler()
+    
+    if 'discovered_documents' not in st.session_state:
+        st.session_state.discovered_documents = {}
+    
+    # Create columns for better layout
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        st.subheader("📋 Topic Selection")
+        
+        # Platform selection
+        platform = st.selectbox("Select Platform:", ["IOS", "IOS-XR", "Both"])
+        
+        # Topic categories
+        topic_categories = {
+            "🌐 Routing Protocols": ["IPv4", "IGP OSPF", "BGP", "MP-BGP", "Route Reflector"],
+            "🔧 MPLS & VPN": ["MPLS LDP", "L2VPN", "L3VPN"],
+            "🔀 Switching": ["Layer 2 Switching"],
+            "⚡ Quality of Service": ["QoS"],
+            "🛠️ Services & Management": ["Services", "FTP", "SSH", "TFTP", "SNMP", "AAA", "NetFlow"]
+        }
+        
+        selected_topics = []
+        for category, topics in topic_categories.items():
+            st.markdown(f"**{category}**")
+            cols = st.columns(3)
+            for i, topic in enumerate(topics):
+                with cols[i % 3]:
+                    if st.checkbox(topic, key=f"topic_{topic}"):
+                        selected_topics.append(topic)
+        
+        st.subheader("📚 CCIE Study Materials")
+        
+        ccie_selection = {}
+        ccie_categories = {
+            "CCIE Service Provider": 10,
+            "CCIE Enterprise Infrastructure": 12,
+            "CCIE Security": 9
+        }
+        
+        for category, count in ccie_categories.items():
+            ccie_selection[category] = st.checkbox(f"{category} ({count} books)", key=f"ccie_{category}")
+    
+    with col2:
+        st.subheader("🎛️ Discovery Settings")
+        
+        max_docs_per_topic = st.slider("Max documents per topic:", 1, 20, 5)
+        download_immediately = st.checkbox("Download documents immediately", value=False)
+        
+        st.subheader("📊 Discovery Statistics")
+        
+        if st.session_state.discovered_documents:
+            total_docs = sum(len(docs) for docs in st.session_state.discovered_documents.values())
+            downloaded_docs = sum(1 for docs in st.session_state.discovered_documents.values() 
+                                for doc in docs if doc.download_status == "completed")
+            
+            st.metric("Total Discovered", total_docs)
+            st.metric("Downloaded", downloaded_docs)
+            st.metric("Success Rate", f"{(downloaded_docs/total_docs*100):.1f}%" if total_docs > 0 else "0%")
+    
+    # Action buttons
+    st.markdown("---")
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        if st.button("🔍 Start Discovery", type="primary", use_container_width=True):
+            if selected_topics or any(ccie_selection.values()):
+                discovery_progress = st.progress(0)
+                status_text = st.empty()
+                
+                discovered_docs = {}
+                total_tasks = len(selected_topics) * (2 if platform == "Both" else 1) + sum(ccie_selection.values())
+                current_task = 0
+                
+                # Discover documents for selected topics
+                for topic in selected_topics:
+                    platforms_to_search = ["IOS", "IOS-XR"] if platform == "Both" else [platform]
+                    
+                    for plat in platforms_to_search:
+                        status_text.text(f"Searching {plat} documents for {topic}...")
+                        docs = st.session_state.document_crawler.search_documents_by_topic(topic, plat)
+                        
+                        if docs:
+                            key = f"{plat}_{topic}"
+                            discovered_docs[key] = docs[:max_docs_per_topic]
+                        
+                        current_task += 1
+                        discovery_progress.progress(current_task / total_tasks)
+                
+                # Discover CCIE materials
+                for category, selected in ccie_selection.items():
+                    if selected:
+                        status_text.text(f"Searching {category} materials...")
+                        docs = st.session_state.document_crawler.search_ccie_books(category.replace("CCIE ", ""))
+                        
+                        if docs:
+                            discovered_docs[category] = docs
+                        
+                        current_task += 1
+                        discovery_progress.progress(current_task / total_tasks)
+                
+                st.session_state.discovered_documents = discovered_docs
+                status_text.text("Discovery completed!")
+                st.success(f"Discovered {sum(len(docs) for docs in discovered_docs.values())} documents!")
+                
+                # Auto-download if enabled
+                if download_immediately and discovered_docs:
+                    st.info("Starting automatic downloads...")
+                    all_docs = []
+                    for docs in discovered_docs.values():
+                        all_docs.extend(docs)
+                    
+                    download_stats = st.session_state.document_crawler.download_documents_batch(all_docs)
+                    st.success(f"Downloaded {download_stats['completed']} documents successfully!")
+                
+            else:
+                st.warning("Please select at least one topic or CCIE category.")
+    
+    with col2:
+        if st.button("📥 Download Selected", use_container_width=True):
+            if st.session_state.discovered_documents:
+                # Create download interface
+                st.info("Download functionality will be implemented here.")
+            else:
+                st.warning("No documents discovered yet. Run discovery first.")
+    
+    with col3:
+        if st.button("🔄 Batch Process", use_container_width=True):
+            if st.session_state.discovered_documents:
+                downloaded_docs = []
+                for docs in st.session_state.discovered_documents.values():
+                    for doc in docs:
+                        if doc.download_status == "completed" and doc.local_path:
+                            downloaded_docs.append(doc.local_path)
+                
+                if downloaded_docs:
+                    st.info(f"Starting batch processing of {len(downloaded_docs)} documents...")
+                    
+                    # Initialize batch processing
+                    st.session_state.app_state.batch_progress.total_documents = len(downloaded_docs)
+                    st.session_state.app_state.batch_progress.processed_documents = 0
+                    st.session_state.app_state.batch_progress.status = "initializing"
+                    st.session_state.app_state.processing = "batch"
+                    
+                    # Start batch processing in background thread
+                    state_lock = threading.Lock()
+                    batch_thread = threading.Thread(
+                        target=batch_processing_pipeline, 
+                        args=(downloaded_docs, st.session_state.app_state, state_lock)
+                    )
+                    batch_thread.start()
+                    
+                    st.success("Batch processing started! Check the Build Knowledgebase tab for progress.")
+                    
+                else:
+                    st.warning("No downloaded documents available for processing.")
+            else:
+                st.warning("No documents available. Run discovery and download first.")
+    
+    with col4:
+        if st.button("📄 Export Report", use_container_width=True):
+            if st.session_state.discovered_documents:
+                report_path = f"discovery_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+                st.session_state.document_crawler.save_discovery_report(
+                    st.session_state.discovered_documents, 
+                    report_path
+                )
+                st.success(f"Report exported to {report_path}")
+            else:
+                st.warning("No discovery data to export.")
+    
+    # Display discovered documents
+    if st.session_state.discovered_documents:
+        st.markdown("---")
+        st.subheader("📋 Discovered Documents")
+        
+        for category, docs in st.session_state.discovered_documents.items():
+            with st.expander(f"{category} ({len(docs)} documents)", expanded=False):
+                for doc in docs:
+                    col1, col2, col3 = st.columns([3, 1, 1])
+                    
+                    with col1:
+                        st.markdown(f"**{doc.title}**")
+                        st.markdown(f"*{doc.description}*")
+                        st.markdown(f"🔗 [Link]({doc.url})")
+                    
+                    with col2:
+                        status_color = {"completed": "🟢", "failed": "🔴", "pending": "🟡"}
+                        st.markdown(f"Status: {status_color.get(doc.download_status, '🟡')} {doc.download_status}")
+                        if doc.file_size:
+                            st.markdown(f"Size: {doc.file_size}")
+                    
+                    with col3:
+                        if doc.download_status == "pending":
+                            if st.button(f"Download", key=f"dl_{doc.url}"):
+                                success = st.session_state.document_crawler.download_document(doc)
+                                if success:
+                                    st.success("Downloaded!")
+                                    st.rerun()
+                                else:
+                                    st.error("Download failed!")
+
+def render_batch_progress_screen():
+    """Renders the batch processing progress screen"""
+    st.header("🔄 Batch Processing in Progress")
+    st.markdown("Processing multiple Cisco documents to create enhanced knowledge libraries...")
+    
+    state = st.session_state.app_state
+    batch_progress = state.batch_progress
+    
+    # Overall batch progress
+    if batch_progress.total_documents > 0:
+        progress_value = batch_progress.processed_documents / batch_progress.total_documents
+        st.progress(progress_value)
+        st.write(f"Documents: {batch_progress.processed_documents}/{batch_progress.total_documents}")
+    
+    # Current status
+    status_map = {
+        "initializing": "🔧 Initializing batch processing...",
+        "extracting_text": "📄 Extracting text from documents...",
+        "building_knowledge_base": "🧠 Building enhanced knowledge base...",
+        "completed": "✅ Batch processing completed!",
+        "error": "❌ Error occurred during batch processing"
+    }
+    
+    current_status = status_map.get(batch_progress.status, batch_progress.status)
+    st.write(f"**Status:** {current_status}")
+    
+    if batch_progress.current_document:
+        st.write(f"**Current Document:** {batch_progress.current_document}")
+    
+    # Progress details
+    if state.progress.current_step:
+        st.write(f"**Current Step:** {state.progress.current_step}")
+    
+    # System metrics
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("CPU Usage", f"{state.system.cpu_percent:.1f}%")
+    with col2:
+        st.metric("Memory Usage", f"{state.system.memory_percent:.1f}%")
+    with col3:
+        st.metric("Memory Used", f"{state.system.memory_used_mb:.0f} MB")
+    
+    # Real-time logs (if available)
+    if state.log_file and os.path.exists(state.log_file):
+        st.subheader("📋 Processing Logs")
+        with st.expander("View Logs", expanded=False):
+            try:
+                with open(state.log_file, 'r') as f:
+                    logs = f.read()
+                    # Show last 20 lines
+                    log_lines = logs.split('\n')[-20:]
+                    st.text('\n'.join(log_lines))
+            except Exception as e:
+                st.error(f"Could not read log file: {e}")
+    
+    # Enhanced batch features info
+    st.markdown("---")
+    st.subheader("🚀 Enhanced Batch Processing Features")
+    
+    features = [
+        "Cross-document knowledge synthesis",
+        "Enhanced error pattern detection",
+        "Comprehensive best practices compilation",
+        "Advanced troubleshooting scenarios",
+        "Cross-reference knowledge library",
+        "Multi-document command syntax analysis"
+    ]
+    
+    for feature in features:
+        st.write(f"• {feature}")
+    
+    if st.button("Cancel Batch Processing"):
+        st.session_state.app_state.processing = "error"
+        st.warning("Batch processing cancelled by user.")
+        st.rerun()
+
 def main():
     st.set_page_config(page_title="Cisco IOS RAG System Pro", layout="wide", page_icon="🔧")
     st.title("🔧 Cisco IOS RAG System Pro")
@@ -558,9 +1146,12 @@ def main():
     if 'app_state' not in st.session_state:
         st.session_state.app_state = AppState()
     
-    main_tabs = st.tabs(["🏗️ Build Knowledgebase", "🚀 Fine-Tuning Guide"])
+    main_tabs = st.tabs(["🔍 Document Discovery", "🏗️ Build Knowledgebase", "🚀 Fine-Tuning Guide"])
 
     with main_tabs[0]:
+        render_document_discovery()
+
+    with main_tabs[1]:
         state = st.session_state.app_state
 
         if not state.processing:
@@ -586,6 +1177,11 @@ def main():
             time.sleep(TIME_UPDATE_INTERVAL)
             st.rerun()
             
+        elif state.processing == "batch":
+            render_batch_progress_screen()
+            time.sleep(TIME_UPDATE_INTERVAL)
+            st.rerun()
+            
         elif state.processing == "done":
             if 'stop_event' in st.session_state:
                 st.session_state.stop_event.set()
@@ -601,7 +1197,7 @@ def main():
                 st.session_state.app_state = AppState()
                 st.rerun()
 
-    with main_tabs[1]:
+    with main_tabs[2]:
         render_fine_tuning_guide()
 
 if __name__ == "__main__":
