@@ -1,0 +1,1266 @@
+
+
+"""
+Product Requirements Document (PRD): Gen-AI Document Analyst & Data Synthesizer
+Version: 1.0
+Date: July 11, 2025
+Author: Gemini (Google AI)
+Status: Proposed
+1. Introduction & Overview
+This document outlines the requirements for the Gen-AI Document Analyst & Data Synthesizer, a Streamlit web application. The application serves two primary functions:
+Advanced Document Interaction: It provides a robust Retrieval-Augmented Generation (RAG) pipeline allowing users to upload technical documents (e.g., Cisco IOS manuals) or use pre-loaded knowledge libraries (Cisco best practices, error patterns) and "chat" with them using a local Large Language Model (LLM) via Ollama.
+Synthetic Data Generation: It leverages the ingested knowledge to synthetically generate new, structured data, such as Question/Answer pairs, configuration examples, or error scenarios. The quantity of generated data is user-configurable.
+The system is designed for resilience, featuring robust state management to recover from failures at any step. It provides clear, real-time feedback on the status of long-running tasks.
+2. Goals and Objectives
+Goal 1: Empower network engineers, students, and technical writers to rapidly query and understand complex technical documentation.
+Goal 2: Accelerate the creation of training materials, test cases, and knowledge base articles by synthetically generating high-quality examples from source documents.
+Goal 3: Provide a secure, private, and cost-effective solution by leveraging local LLMs through Ollama.
+Success Metric 1: User can successfully upload a PDF, process it, and receive a relevant answer to a query within 5 minutes of starting the app.
+Success Metric 2: User can successfully generate a set of 100 Q&A pairs from a document, which are then saved to a local output folder.
+Success Metric 3: The application maintains its state and provides clear error messages if a backend process (e.g., Ollama server) is unavailable, without crashing.
+3. Target Audience
+Network Engineers: Need to quickly find configuration commands, troubleshoot errors, and understand best practices from dense Cisco manuals.
+Technical Trainers & Educators: Need to create quizzes, examples, and lab scenarios based on official documentation.
+AI/ML Developers: Need a reference implementation for an advanced, stateful RAG application with data generation capabilities.
+4. User Stories
+As a network engineer, I want to upload a 500-page Cisco PDF so that I can ask specific questions like "How do I configure a GRE tunnel?" and get a direct, context-aware answer instead of manually searching the document.
+As a technical trainer, I want to load the Cisco Best Practices library so that I can generate 50 unique "What is the best practice for X?" questions and their corresponding answers to build a new training module.
+As a developer, I want to see the real-time progress of document processing, including elapsed time and an estimated completion time, so that I know the system is working and can estimate how long I need to wait.
+As a user, I want to have my work saved between steps so that if my PDF upload succeeds but vectorization fails, I don't have to re-upload the file.
+As a curriculum developer, I want to generate thousands of examples (1K, 10K) from a sourcebook so that I can build a large dataset for fine-tuning a specialized model.
+5. Features and Requirements
+5.1. Core RAG Pipeline
+FR 1.1 - Ollama Integration: The app must detect and allow the user to select from any available LLM models running on the local Ollama instance. It must use a text-embedding model (e.g., nomic-embed-text) for document processing.
+FR 1.2 - Knowledge Source Selection: The user must be able to choose their knowledge source:
+Option A: Upload a single PDF document.
+Option B: Load pre-built knowledge libraries (Error Patterns, Best Practices) from a local directory structure (/data).
+FR 1.3 - Sophisticated Document Chunking: The user must be able to select a chunking strategy:
+Recursive Character Splitting: Splits text based on semantic boundaries.
+Token-Based Splitting: Splits text based on a specific token count to align with the LLM context window.
+Chunk size and overlap must be configurable via sliders.
+FR 1.4 - Vector Store: Processed document chunks shall be embedded and stored in a ChromaDB vector store.
+FR 1.5 - Conversational Chat Interface: A chat interface shall be provided for users to ask questions. The interface will display chat history and support a conversational RAG chain that can use chat history to contextualize new questions.
+5.2. Synthetic Data Generation
+FR 2.1 - Generation UI: A new section/tab titled "Synthetic Data Generation" shall be available after the document processing step is complete.
+FR 2.2 - Generation Quantity Selection: The user must be able to select the number of data examples to generate. The UI must provide:
+Pre-defined options: 5, 10, 25, 50, 100, 400, 1000, 10000.
+A "Custom" option that allows the user to input a specific number.
+FR 2.3 - Generation Task: The system will use the loaded documents as context. For each example to be generated, it will feed a random chunk of context to the LLM with a specialized prompt to generate a structured output (e.g., a JSON object with "question" and "answer" keys).
+FR 2.4 - Output Folder: All generated files must be saved to a directory named OUTPUT-FOLDER. The application must create this folder if it does not exist.
+FR 2.5 - Output File: The generated data shall be saved in a structured format (e.g., JSON or Markdown). The filename must be unique and descriptive, including the task type and a timestamp (e.g., synthetic-QA_2025-07-11_21-00-00.json).
+5.3. Status Reporting & Progress Monitoring
+FR 3.1 - Real-time Progress Bar: For long-running, iterative tasks (document processing, data generation), a visual progress bar (e.g., st.progress) must be displayed.
+FR 3.2 - Detailed Status Metrics: Alongside the progress bar, the following metrics must be displayed and updated in real-time:
+Task Started: The wall-clock time the process began (e.g., "Started at: 09:35:10 PM").
+Elapsed Time: A running timer showing how long the process has been running (e.g., "Elapsed: 00m 45s").
+Percentage Complete: The percentage of items processed (e.g., "Progress: 45%").
+Estimated Time to Completion (ETC): An estimation of the remaining time, calculated based on the average time per item processed (e.g., "ETC: ~1m 10s").
+5.4. System Resilience & State Management
+FR 4.1 - State Persistence: The application must use Streamlit's session_state to track its progress through the workflow (e.g., step_0_init, step_1_file_uploaded, step_2_processing_done).
+FR 4.2 - Graceful Failure: If any step fails (e.g., Ollama is not running, PDF is corrupt), the application must display a clear, user-friendly error message and halt that specific process without crashing. It should allow the user to correct the issue (e.g., start Ollama) and try again.
+FR 4.3 - State Reset: A "Start Over" button must be available at all times to reset the session_state and return the application to its initial screen.
+6. Technical Specifications
+Language: Python 3.9+
+Framework: Streamlit
+LLM Orchestration: LangChain
+LLM Host: Ollama (running locally)
+Vector Database: ChromaDB (in-memory)
+Document Loading: PyPDFLoader, TextLoader
+Deployment: Local machine execution.
+7. UI/UX Flow
+Initial Screen (State 0):
+Sidebar: Displays configuration options for Knowledge Source, Chunking Strategy, and LLM selection. A "Start Over" button is visible.
+Main Panel: Shows a welcome message. Prompts the user to either upload a PDF or click a button to load the pre-built libraries.
+Processing Screen (State 1):
+Main Panel: A st.status box appears.
+Inside the status box, the Status Reporter (FR 3.2) displays real-time metrics for the document chunking and vectorization process.
+Interaction Screen (State 2):
+Main Panel: A success message confirms the knowledge base is ready. The layout transforms into two main tabs:
+Tab 1: "Chat with Document" (Default): The conversational chat interface (FR 1.5).
+Tab 2: "Synthetic Data Generation": Contains the UI for the data generation feature (FR 2.1, 2.2). A "Generate" button triggers the process.
+Data Generation In Progress (State 3):
+Main Panel: When the "Generate" button is clicked, the UI shows another st.status box with the detailed Status Reporter for the generation task.
+Upon completion, a success message appears, stating "Data generation complete. X examples saved to OUTPUT-FOLDER/filename.json".
+
+"""
+
+###
+
+
+
+
+### What the `streamlit_rag_builder.py` script actually does
+
+Think of it as a **one-page “factory” UI** that walks you through every step needed to transform a raw Cisco IOS PDF into a working, locally-hosted RAG knowledge base—completely offline except for optional OpenAI embeddings.
+
+| Pipeline stage in the UI         | What happens under the hood                                                                                                                                                                        | How it fulfils the project’s high-level goals                                                               |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| **1 · Upload PDF**               | Stores `cf_book.pdf` locally and records the path in a JSON “state” file so you can resume later.                                                                                                  | Bootstraps the content source for both the **Error Pattern** and **Best Practices** libraries.              |
+| **2 · Chunk Text**               | Uses LangChain’s token-aware splitter to cut the PDF into ≤7.5 k-token, 500-token-overlap chunks, each tagged with its page number and source.                                                     | Implements *“Improve RAG”* by creating context-aware, retrievable chunks that respect LLM context limits.   |
+| **3 · Label with Ollama**        | For every line that looks like a Cisco error (`%…`), calls your **local Llama model** (via Ollama) with a prompt that returns a structured JSON record → **id, title, cause, resolution, source**. | Automatically populates the **Error Pattern Library** without cloud APIs or manual data entry.              |
+| **4 · Embed & Save to ChromaDB** | Generates embeddings (default OpenAI ADA-002; can be swapped for a local model) and writes documents + vectors + metadata into a persistent Chroma collection called `error_patterns`.             | Materialises the library inside the exact vector store your existing RAG agent already queries.             |
+| **5 · Search Interface**         | Lets you type a natural-language question; the RetrievalQA chain pulls the most relevant chunks from Chroma and passes them to an LLM for the answer.                                              | Demonstrates the **accuracy improvement** you’ll get once the new libraries are live.                       |
+| **State & Recovery**             | Every click updates `pipeline_state.json`; if the app crashes or you refresh, it resumes at the last completed step.                                                                               | Ensures long-running jobs (10 k labels, large embeddings) can survive interruptions—crucial for production. |
+
+---
+
+#### In one sentence
+
+> **It’s an end-to-end, button-click pipeline that turns a 1 200-page Cisco PDF into a searchable, Ollama-powered RAG knowledge base—covering upload → smart chunking → auto-labelling → vector-indexing → interactive querying—with progress saved so you can stop and resume at any point.**
+
+That directly serves the main programme goals:
+
+* **“Improve RAG”** – by generating smaller, semantically coherent chunks.
+* **“Create Knowledge Libraries”** – by auto-building the Error Pattern collection (and you can duplicate the same steps for Best Practices).
+* **“No new architecture”** – the code relies only on your existing agent stack: Streamlit for UI, Chroma for storage, Ollama for local LLM calls.
+
+###
+
+import os
+import json
+import hashlib
+import pickle
+from datetime import datetime
+from typing import Dict, List, Tuple, Optional, Any
+import logging
+from pathlib import Path
+
+import streamlit as st
+import chromadb
+from chromadb.config import Settings
+import PyPDF2
+import fitz  # PyMuPDF
+from langchain.text_splitter import RecursiveCharacterTextSplitter, TokenTextSplitter
+from langchain_community.embeddings import OllamaEmbeddings
+from langchain_community.llms import Ollama
+from langchain.chains import RetrievalQA
+from langchain_community.vectorstores import Chroma
+from langchain.schema import Document
+import nltk
+from nltk.tokenize import sent_tokenize, word_tokenize
+import re
+import pandas as pd
+from dataclasses import dataclass, asdict
+import subprocess
+import platform
+import requests
+from tqdm import tqdm
+
+# Download NLTK data
+try:
+    nltk.download('punkt', quiet=True)
+    nltk.download('stopwords', quiet=True)
+except:
+    pass
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# State management
+@dataclass
+class ProcessingState:
+    """State management for processing pipeline"""
+    step: str = "idle"
+    pdf_path: Optional[str] = None
+    extracted_text: Optional[Dict[str, str]] = None
+    chunks: Optional[List[Document]] = None
+    vector_store_created: bool = False
+    error_patterns_loaded: bool = False
+    best_practices_loaded: bool = False
+    last_checkpoint: Optional[datetime] = None
+    processing_history: List[Dict] = None
+    
+    def __post_init__(self):
+        if self.processing_history is None:
+            self.processing_history = []
+    
+    def to_dict(self) -> Dict:
+        """Convert state to dictionary for serialization"""
+        return {
+            'step': self.step,
+            'pdf_path': self.pdf_path,
+            'extracted_text': self.extracted_text,
+            'chunks': [{'page_content': c.page_content, 'metadata': c.metadata} for c in self.chunks] if self.chunks else None,
+            'vector_store_created': self.vector_store_created,
+            'error_patterns_loaded': self.error_patterns_loaded,
+            'best_practices_loaded': self.best_practices_loaded,
+            'last_checkpoint': self.last_checkpoint.isoformat() if self.last_checkpoint else None,
+            'processing_history': self.processing_history
+        }
+    
+    @classmethod
+    def from_dict(cls, data: Dict) -> 'ProcessingState':
+        """Create state from dictionary"""
+        state = cls(
+            step=data.get('step', 'idle'),
+            pdf_path=data.get('pdf_path'),
+            extracted_text=data.get('extracted_text'),
+            chunks=None,
+            vector_store_created=data.get('vector_store_created', False),
+            error_patterns_loaded=data.get('error_patterns_loaded', False),
+            best_practices_loaded=data.get('best_practices_loaded', False),
+            last_checkpoint=datetime.fromisoformat(data['last_checkpoint']) if data.get('last_checkpoint') else None,
+            processing_history=data.get('processing_history', [])
+        )
+        
+        # Reconstruct chunks if available
+        if data.get('chunks'):
+            state.chunks = [Document(page_content=c['page_content'], metadata=c['metadata']) for c in data['chunks']]
+        
+        return state
+
+class StateManager:
+    """Manages state persistence and recovery"""
+    def __init__(self, state_dir: str = "./state"):
+        self.state_dir = Path(state_dir)
+        self.state_dir.mkdir(exist_ok=True)
+        self.state_file = self.state_dir / "processing_state.json"
+        self.checkpoint_dir = self.state_dir / "checkpoints"
+        self.checkpoint_dir.mkdir(exist_ok=True)
+    
+    def save_state(self, state: ProcessingState):
+        """Save current state to file"""
+        try:
+            state.last_checkpoint = datetime.now()
+            with open(self.state_file, 'w') as f:
+                json.dump(state.to_dict(), f, indent=2)
+            
+            # Create checkpoint
+            checkpoint_file = self.checkpoint_dir / f"checkpoint_{state.last_checkpoint.strftime('%Y%m%d_%H%M%S')}.json"
+            with open(checkpoint_file, 'w') as f:
+                json.dump(state.to_dict(), f, indent=2)
+            
+            # Keep only last 10 checkpoints
+            checkpoints = sorted(self.checkpoint_dir.glob("checkpoint_*.json"))
+            if len(checkpoints) > 10:
+                for cp in checkpoints[:-10]:
+                    cp.unlink()
+                    
+        except Exception as e:
+            logger.error(f"Error saving state: {e}")
+    
+    def load_state(self) -> Optional[ProcessingState]:
+        """Load state from file"""
+        try:
+            if self.state_file.exists():
+                with open(self.state_file, 'r') as f:
+                    data = json.load(f)
+                return ProcessingState.from_dict(data)
+        except Exception as e:
+            logger.error(f"Error loading state: {e}")
+        return None
+    
+    def list_checkpoints(self) -> List[Path]:
+        """List available checkpoints"""
+        return sorted(self.checkpoint_dir.glob("checkpoint_*.json"), reverse=True)
+
+class OllamaManager:
+    """Manages Ollama installation and models"""
+    
+    @staticmethod
+    def check_ollama_installed() -> bool:
+        """Check if Ollama is installed"""
+        try:
+            result = subprocess.run(['ollama', '--version'], capture_output=True, text=True)
+            return result.returncode == 0
+        except:
+            return False
+    
+    @staticmethod
+    def install_ollama():
+        """Install Ollama based on the operating system"""
+        system = platform.system().lower()
+        
+        if system == "darwin":  # macOS
+            st.info("Installing Ollama on macOS...")
+            subprocess.run(["brew", "install", "ollama"], check=True)
+        elif system == "linux":
+            st.info("Installing Ollama on Linux...")
+            subprocess.run(["curl", "-fsSL", "https://ollama.ai/install.sh", "|", "sh"], shell=True, check=True)
+        elif system == "windows":
+            st.error("Please download and install Ollama manually from https://ollama.ai/download")
+            return False
+        return True
+    
+    @staticmethod
+    def check_model_exists(model_name: str) -> bool:
+        """Check if a model exists in Ollama"""
+        try:
+            result = subprocess.run(['ollama', 'list'], capture_output=True, text=True)
+            return model_name in result.stdout
+        except:
+            return False
+    
+    @staticmethod
+    def pull_model(model_name: str):
+        """Pull a model from Ollama"""
+        try:
+            subprocess.run(['ollama', 'pull', model_name], check=True)
+            return True
+        except:
+            return False
+
+class AdvancedChunker:
+    """Advanced document chunking strategies"""
+    
+    def __init__(self, chunk_size: int = 1000, chunk_overlap: int = 200):
+        self.chunk_size = chunk_size
+        self.chunk_overlap = chunk_overlap
+    
+    def context_aware_chunk(self, text: str, metadata: Dict) -> List[Document]:
+        """Context-aware chunking that preserves semantic boundaries"""
+        chunks = []
+        
+        # Split by major sections (assuming Cisco documentation structure)
+        section_patterns = [
+            r'\n(?=Chapter \d+)',
+            r'\n(?=Section \d+\.\d+)',
+            r'\n(?=\d+\.\d+\s+[A-Z])',
+            r'\n(?=Configuration Example)',
+            r'\n(?=Command Reference)',
+            r'\n(?=Syntax Description)',
+            r'\n(?=Usage Guidelines)'
+        ]
+        
+        sections = [text]
+        for pattern in section_patterns:
+            new_sections = []
+            for section in sections:
+                parts = re.split(pattern, section)
+                new_sections.extend(parts)
+            sections = new_sections
+        
+        # Process each section
+        for section in sections:
+            if len(section.strip()) < 50:  # Skip very short sections
+                continue
+            
+            # Further split long sections by paragraphs
+            if len(section) > self.chunk_size * 2:
+                paragraphs = section.split('\n\n')
+                current_chunk = ""
+                
+                for para in paragraphs:
+                    if len(current_chunk) + len(para) < self.chunk_size:
+                        current_chunk += para + "\n\n"
+                    else:
+                        if current_chunk:
+                            chunks.append(Document(
+                                page_content=current_chunk.strip(),
+                                metadata={**metadata, 'chunk_type': 'context_aware'}
+                            ))
+                        current_chunk = para + "\n\n"
+                
+                if current_chunk:
+                    chunks.append(Document(
+                        page_content=current_chunk.strip(),
+                        metadata={**metadata, 'chunk_type': 'context_aware'}
+                    ))
+            else:
+                chunks.append(Document(
+                    page_content=section.strip(),
+                    metadata={**metadata, 'chunk_type': 'context_aware'}
+                ))
+        
+        return chunks
+    
+    def command_aware_chunk(self, text: str, metadata: Dict) -> List[Document]:
+        """Chunk specifically for command documentation"""
+        chunks = []
+        
+        # Pattern to identify command blocks
+        command_pattern = r'(?:^|\n)([a-z\-]+(?:\s+[a-z\-]+)*)\s*\n\s*Syntax:'
+        
+        # Find all command blocks
+        matches = list(re.finditer(command_pattern, text, re.MULTILINE | re.IGNORECASE))
+        
+        if matches:
+            for i, match in enumerate(matches):
+                start = match.start()
+                end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+                
+                command_block = text[start:end].strip()
+                command_name = match.group(1).strip()
+                
+                chunks.append(Document(
+                    page_content=command_block,
+                    metadata={
+                        **metadata,
+                        'chunk_type': 'command',
+                        'command_name': command_name
+                    }
+                ))
+        else:
+            # Fallback to regular chunking
+            splitter = RecursiveCharacterTextSplitter(
+                chunk_size=self.chunk_size,
+                chunk_overlap=self.chunk_overlap
+            )
+            chunks = splitter.create_documents([text], [metadata])
+        
+        return chunks
+    
+    def token_based_chunk(self, text: str, metadata: Dict, max_tokens: int = 512) -> List[Document]:
+        """Token-based chunking for better embedding alignment"""
+        # Using approximate token count (1 token ≈ 4 characters)
+        char_limit = max_tokens * 4
+        
+        splitter = TokenTextSplitter(
+            chunk_size=char_limit,
+            chunk_overlap=char_limit // 5
+        )
+        
+        chunks = splitter.create_documents([text], [metadata])
+        for chunk in chunks:
+            chunk.metadata['chunk_type'] = 'token_based'
+        
+        return chunks
+    
+    def hybrid_chunk(self, text: str, metadata: Dict) -> List[Document]:
+        """Combine multiple chunking strategies"""
+        all_chunks = []
+        
+        # Apply different chunking strategies
+        context_chunks = self.context_aware_chunk(text, metadata)
+        command_chunks = self.command_aware_chunk(text, metadata)
+        token_chunks = self.token_based_chunk(text, metadata)
+        
+        # Deduplicate and merge
+        seen_content = set()
+        for chunk in context_chunks + command_chunks + token_chunks:
+            content_hash = hashlib.md5(chunk.page_content.encode()).hexdigest()
+            if content_hash not in seen_content:
+                seen_content.add(content_hash)
+                all_chunks.append(chunk)
+        
+        return all_chunks
+
+class PDFProcessor:
+    """Process PDF documents with multiple extraction methods"""
+    
+    @staticmethod
+    def extract_text_pypdf(pdf_path: str) -> Dict[int, str]:
+        """Extract text using PyPDF2"""
+        text_by_page = {}
+        try:
+            with open(pdf_path, 'rb') as file:
+                pdf_reader = PyPDF2.PdfReader(file)
+                for page_num in range(len(pdf_reader.pages)):
+                    page = pdf_reader.pages[page_num]
+                    text_by_page[page_num + 1] = page.extract_text()
+        except Exception as e:
+            logger.error(f"Error with PyPDF2: {e}")
+        return text_by_page
+    
+    @staticmethod
+    def extract_text_pymupdf(pdf_path: str) -> Dict[int, str]:
+        """Extract text using PyMuPDF for better quality"""
+        text_by_page = {}
+        try:
+            pdf_document = fitz.open(pdf_path)
+            for page_num in range(len(pdf_document)):
+                page = pdf_document[page_num]
+                text_by_page[page_num + 1] = page.get_text()
+            pdf_document.close()
+        except Exception as e:
+            logger.error(f"Error with PyMuPDF: {e}")
+        return text_by_page
+    
+    @staticmethod
+    def extract_structured_content(pdf_path: str) -> Dict[str, Any]:
+        """Extract structured content including tables and formatting"""
+        structured_data = {
+            'text_by_page': {},
+            'tables': [],
+            'commands': [],
+            'examples': []
+        }
+        
+        try:
+            pdf_document = fitz.open(pdf_path)
+            
+            for page_num in range(len(pdf_document)):
+                page = pdf_document[page_num]
+                
+                # Extract text
+                text = page.get_text()
+                structured_data['text_by_page'][page_num + 1] = text
+                
+                # Extract commands (basic pattern matching)
+                command_pattern = r'^([a-z\-]+(?:\s+[a-z\-]+)*)\s*$'
+                commands = re.findall(command_pattern, text, re.MULTILINE)
+                structured_data['commands'].extend(commands)
+                
+                # Extract configuration examples
+                example_pattern = r'(?:Example|Configuration):\s*\n((?:(?:Router|Switch).*\n)*)'
+                examples = re.findall(example_pattern, text, re.MULTILINE)
+                structured_data['examples'].extend(examples)
+            
+            pdf_document.close()
+        except Exception as e:
+            logger.error(f"Error extracting structured content: {e}")
+        
+        return structured_data
+
+class KnowledgeLibraryBuilder:
+    """Build specialized knowledge libraries"""
+    
+    @staticmethod
+    def create_error_pattern_library() -> List[Document]:
+        """Create a library of common Cisco IOS configuration errors"""
+        error_patterns = [
+            {
+                "error": "% Invalid input detected",
+                "cause": "Syntax error in command",
+                "solution": "Check command syntax, ensure correct spelling and parameters",
+                "example": "router eigrp 100 (correct) vs router eigrp100 (incorrect)"
+            },
+            {
+                "error": "% Incomplete command",
+                "cause": "Missing required parameters",
+                "solution": "Use ? to see required parameters, complete the command",
+                "example": "interface FastEthernet0/1 requires additional configuration"
+            },
+            {
+                "error": "% Ambiguous command",
+                "cause": "Command prefix matches multiple commands",
+                "solution": "Type more characters to uniquely identify the command",
+                "example": "'sh' could mean 'show' or 'shutdown'"
+            },
+            {
+                "error": "% Configuration locked",
+                "cause": "Another user is in configuration mode",
+                "solution": "Wait for other user to exit or use 'clear line vty' if authorized",
+                "example": "Only one user can be in global configuration mode at a time"
+            },
+            {
+                "error": "% Interface is administratively down",
+                "cause": "Interface is manually shut down",
+                "solution": "Use 'no shutdown' command on the interface",
+                "example": "interface GigabitEthernet0/1\n no shutdown"
+            },
+            {
+                "error": "% Duplicate address detected",
+                "cause": "IP address already in use on network",
+                "solution": "Change IP address or resolve conflict on other device",
+                "example": "Check with 'show ip interface brief' and 'show arp'"
+            },
+            {
+                "error": "% Bad mask",
+                "cause": "Invalid subnet mask format",
+                "solution": "Use proper subnet mask format (e.g., 255.255.255.0)",
+                "example": "ip address 192.168.1.1 255.255.255.0"
+            },
+            {
+                "error": "% Route not found",
+                "cause": "No route to destination network",
+                "solution": "Add static route or configure dynamic routing protocol",
+                "example": "ip route 10.0.0.0 255.0.0.0 192.168.1.1"
+            },
+            {
+                "error": "% Access denied",
+                "cause": "Insufficient privileges",
+                "solution": "Enter enable mode or check user privileges",
+                "example": "enable\n<enter password>"
+            },
+            {
+                "error": "% VLAN does not exist",
+                "cause": "Referencing non-existent VLAN",
+                "solution": "Create VLAN first using 'vlan <number>' command",
+                "example": "vlan 100\n name Sales_VLAN"
+            }
+        ]
+        
+        documents = []
+        for pattern in error_patterns:
+            content = f"""
+Error: {pattern['error']}
+Cause: {pattern['cause']}
+Solution: {pattern['solution']}
+Example: {pattern['example']}
+"""
+            doc = Document(
+                page_content=content,
+                metadata={
+                    'source': 'error_pattern_library',
+                    'type': 'error_pattern',
+                    'error_message': pattern['error']
+                }
+            )
+            documents.append(doc)
+        
+        return documents
+    
+    @staticmethod
+    def create_best_practices_library() -> List[Document]:
+        """Create a library of Cisco IOS best practices"""
+        best_practices = [
+            {
+                "topic": "Password Security",
+                "practice": "Always use strong passwords and enable password encryption",
+                "implementation": """
+enable secret <strong-password>
+service password-encryption
+username admin privilege 15 secret <strong-password>
+line console 0
+ password <console-password>
+ login
+line vty 0 4
+ password <vty-password>
+ login local
+"""
+            },
+            {
+                "topic": "Interface Documentation",
+                "practice": "Document all interfaces with descriptions",
+                "implementation": """
+interface GigabitEthernet0/1
+ description UPLINK TO CORE SWITCH
+interface GigabitEthernet0/2
+ description CONNECTION TO SERVER VLAN
+"""
+            },
+            {
+                "topic": "VLAN Management",
+                "practice": "Use meaningful VLAN names and document purpose",
+                "implementation": """
+vlan 10
+ name MANAGEMENT
+vlan 20
+ name USER_DATA
+vlan 30
+ name VOICE
+vlan 99
+ name NATIVE_VLAN
+"""
+            },
+            {
+                "topic": "Spanning Tree Protocol",
+                "practice": "Use Rapid PVST+ and set root bridge priorities",
+                "implementation": """
+spanning-tree mode rapid-pvst
+spanning-tree vlan 1-4094 priority 4096
+spanning-tree portfast default
+spanning-tree portfast bpduguard default
+"""
+            },
+            {
+                "topic": "NTP Configuration",
+                "practice": "Configure NTP for accurate time synchronization",
+                "implementation": """
+ntp server 10.1.1.1
+ntp server 10.1.1.2
+clock timezone EST -5
+clock summer-time EDT recurring
+service timestamps debug datetime msec localtime
+service timestamps log datetime msec localtime
+"""
+            },
+            {
+                "topic": "Logging Configuration",
+                "practice": "Configure comprehensive logging for troubleshooting",
+                "implementation": """
+logging buffered 51200
+logging console critical
+logging monitor informational
+logging trap informational
+logging host 10.1.1.100
+"""
+            },
+            {
+                "topic": "Access Control Lists",
+                "practice": "Use named ACLs with descriptive entries",
+                "implementation": """
+ip access-list extended MANAGEMENT_ACCESS
+ remark Allow SSH from management network
+ permit tcp 10.1.1.0 0.0.0.255 any eq 22
+ remark Allow SNMP from monitoring server
+ permit udp host 10.1.1.50 any eq 161
+ deny ip any any log
+"""
+            },
+            {
+                "topic": "DHCP Snooping",
+                "practice": "Enable DHCP snooping for security",
+                "implementation": """
+ip dhcp snooping
+ip dhcp snooping vlan 10,20,30
+interface GigabitEthernet0/1
+ ip dhcp snooping trust
+"""
+            },
+            {
+                "topic": "Port Security",
+                "practice": "Implement port security on access ports",
+                "implementation": """
+interface GigabitEthernet0/10
+ switchport port-security
+ switchport port-security maximum 2
+ switchport port-security violation restrict
+ switchport port-security mac-address sticky
+"""
+            },
+            {
+                "topic": "Configuration Backup",
+                "practice": "Regularly backup configurations",
+                "implementation": """
+archive
+ path tftp://10.1.1.100/configs/$h-$t
+ write-memory
+ time-period 1440
+"""
+            }
+        ]
+        
+        documents = []
+        for practice in best_practices:
+            content = f"""
+Best Practice Topic: {practice['topic']}
+Practice: {practice['practice']}
+Implementation:
+{practice['implementation']}
+"""
+            doc = Document(
+                page_content=content,
+                metadata={
+                    'source': 'best_practices_library',
+                    'type': 'best_practice',
+                    'topic': practice['topic']
+                }
+            )
+            documents.append(doc)
+        
+        return documents
+
+class RAGSystem:
+    """Main RAG system for Cisco documentation"""
+    
+    def __init__(self, persist_directory: str = "./chroma_db", model_name: str = "llama2"):
+        self.persist_directory = persist_directory
+        self.model_name = model_name
+        self.embeddings = None
+        self.llm = None
+        self.vector_store = None
+        self.qa_chain = None
+        
+    def initialize(self):
+        """Initialize the RAG system"""
+        try:
+            # Initialize embeddings
+            self.embeddings = OllamaEmbeddings(model=self.model_name)
+            
+            # Initialize LLM
+            self.llm = Ollama(
+                model=self.model_name,
+                temperature=0.1,
+                num_ctx=7500  # 7.5K context as requested
+            )
+            
+            # Initialize or load vector store
+            self.vector_store = Chroma(
+                persist_directory=self.persist_directory,
+                embedding_function=self.embeddings
+            )
+            
+            # Create QA chain
+            self.qa_chain = RetrievalQA.from_chain_type(
+                llm=self.llm,
+                chain_type="stuff",
+                retriever=self.vector_store.as_retriever(
+                    search_kwargs={"k": 5}
+                ),
+                return_source_documents=True
+            )
+            
+            return True
+        except Exception as e:
+            logger.error(f"Error initializing RAG system: {e}")
+            return False
+    
+    def add_documents(self, documents: List[Document]):
+        """Add documents to the vector store"""
+        try:
+            self.vector_store.add_documents(documents)
+            self.vector_store.persist()
+            return True
+        except Exception as e:
+            logger.error(f"Error adding documents: {e}")
+            return False
+    
+    def query(self, question: str) -> Dict[str, Any]:
+        """Query the RAG system"""
+        try:
+            result = self.qa_chain({"query": question})
+            return {
+                "answer": result["result"],
+                "source_documents": result.get("source_documents", [])
+            }
+        except Exception as e:
+            logger.error(f"Error querying RAG system: {e}")
+            return {"answer": "Error processing query", "source_documents": []}
+
+def main():
+    """Main Streamlit application"""
+    st.set_page_config(
+        page_title="Cisco IOS RAG System",
+        page_icon="🔧",
+        layout="wide"
+    )
+    
+    st.title("🔧 Cisco IOS Documentation RAG System")
+    st.markdown("Advanced Retrieval-Augmented Generation for Network Configuration")
+    
+    # Initialize session state
+    if 'state_manager' not in st.session_state:
+        st.session_state.state_manager = StateManager()
+    
+    if 'processing_state' not in st.session_state:
+        # Try to load existing state
+        loaded_state = st.session_state.state_manager.load_state()
+        st.session_state.processing_state = loaded_state or ProcessingState()
+    
+    if 'rag_system' not in st.session_state:
+        st.session_state.rag_system = RAGSystem()
+    
+    # Sidebar for configuration and status
+    with st.sidebar:
+        st.header("System Configuration")
+        
+        # Ollama status
+        st.subheader("Ollama Status")
+        if OllamaManager.check_ollama_installed():
+            st.success("✅ Ollama is installed")
+            
+            model_name = st.selectbox(
+                "Select Model",
+                ["llama2", "mistral", "codellama", "neural-chat"],
+                help="Choose the LLM model for RAG"
+            )
+            
+            if not OllamaManager.check_model_exists(model_name):
+                if st.button(f"Pull {model_name} model"):
+                    with st.spinner(f"Pulling {model_name} model..."):
+                        if OllamaManager.pull_model(model_name):
+                            st.success(f"✅ {model_name} model pulled successfully")
+                        else:
+                            st.error(f"❌ Failed to pull {model_name} model")
+            else:
+                st.success(f"✅ {model_name} model is available")
+        else:
+            st.warning("⚠️ Ollama is not installed")
+            if st.button("Install Ollama"):
+                with st.spinner("Installing Ollama..."):
+                    if OllamaManager.install_ollama():
+                        st.success("✅ Ollama installed successfully")
+                        st.rerun()
+        
+        # Processing status
+        st.subheader("Processing Status")
+        state = st.session_state.processing_state
+        st.info(f"Current Step: {state.step}")
+        
+        if state.last_checkpoint:
+            st.text(f"Last Checkpoint: {state.last_checkpoint.strftime('%Y-%m-%d %H:%M:%S')}")
+        
+        # State management
+        st.subheader("State Management")
+        
+        if st.button("Save Current State"):
+            st.session_state.state_manager.save_state(state)
+            st.success("✅ State saved")
+        
+        # List checkpoints
+        checkpoints = st.session_state.state_manager.list_checkpoints()
+        if checkpoints:
+            selected_checkpoint = st.selectbox(
+                "Load Checkpoint",
+                checkpoints,
+                format_func=lambda x: x.stem.replace("checkpoint_", "")
+            )
+            
+            if st.button("Load Selected Checkpoint"):
+                with open(selected_checkpoint, 'r') as f:
+                    data = json.load(f)
+                st.session_state.processing_state = ProcessingState.from_dict(data)
+                st.success("✅ Checkpoint loaded")
+                st.rerun()
+        
+        # Chunking configuration
+        st.subheader("Chunking Configuration")
+        chunk_strategy = st.selectbox(
+            "Chunking Strategy",
+            ["hybrid", "context_aware", "command_aware", "token_based"],
+            help="Select the document chunking strategy"
+        )
+        
+        chunk_size = st.slider(
+            "Chunk Size",
+            min_value=500,
+            max_value=2000,
+            value=1000,
+            step=100,
+            help="Size of text chunks in characters"
+        )
+        
+        chunk_overlap = st.slider(
+            "Chunk Overlap",
+            min_value=50,
+            max_value=500,
+            value=200,
+            step=50,
+            help="Overlap between chunks in characters"
+        )
+    
+    # Main content area
+    tabs = st.tabs(["📤 Upload & Process", "📚 Knowledge Libraries", "🔍 Query System", "📊 Analytics"])
+    
+    # Tab 1: Upload and Process
+    with tabs[0]:
+        st.header("Document Upload and Processing")
+        
+        # File upload
+        uploaded_file = st.file_uploader(
+            "Upload Cisco IOS Documentation PDF",
+            type=['pdf'],
+            help="Upload the Cisco IOS command reference PDF"
+        )
+        
+        if uploaded_file is not None:
+            # Save uploaded file
+            pdf_path = f"./temp_{uploaded_file.name}"
+            with open(pdf_path, "wb") as f:
+                f.write(uploaded_file.getbuffer())
+            
+            state.pdf_path = pdf_path
+            st.success(f"✅ File uploaded: {uploaded_file.name}")
+            
+            # Process PDF
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                if st.button("🔄 Extract Text", disabled=state.step not in ["idle", "error"]):
+                    with st.spinner("Extracting text from PDF..."):
+                        try:
+                            state.step = "extracting"
+                            processor = PDFProcessor()
+                            
+                            # Try multiple extraction methods
+                            text_by_page = processor.extract_text_pymupdf(pdf_path)
+                            if not text_by_page:
+                                text_by_page = processor.extract_text_pypdf(pdf_path)
+                            
+                            # Also extract structured content
+                            structured_content = processor.extract_structured_content(pdf_path)
+                            
+                            state.extracted_text = {
+                                'text_by_page': text_by_page,
+                                'structured': structured_content
+                            }
+                            state.step = "extracted"
+                            st.session_state.state_manager.save_state(state)
+                            
+                            st.success(f"✅ Extracted text from {len(text_by_page)} pages")
+                            st.info(f"Found {len(structured_content.get('commands', []))} commands")
+                            
+                        except Exception as e:
+                            state.step = "error"
+                            st.error(f"❌ Error extracting text: {e}")
+            
+            with col2:
+                if st.button("📝 Create Chunks", disabled=state.step != "extracted"):
+                    with st.spinner("Creating document chunks..."):
+                        try:
+                            state.step = "chunking"
+                            chunker = AdvancedChunker(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+                            
+                            all_chunks = []
+                            
+                            # Process each page
+                            for page_num, text in state.extracted_text['text_by_page'].items():
+                                metadata = {
+                                    'source': uploaded_file.name,
+                                    'page': page_num
+                                }
+                                
+                                # Apply selected chunking strategy
+                                if chunk_strategy == "hybrid":
+                                    chunks = chunker.hybrid_chunk(text, metadata)
+                                elif chunk_strategy == "context_aware":
+                                    chunks = chunker.context_aware_chunk(text, metadata)
+                                elif chunk_strategy == "command_aware":
+                                    chunks = chunker.command_aware_chunk(text, metadata)
+                                else:  # token_based
+                                    chunks = chunker.token_based_chunk(text, metadata)
+                                
+                                all_chunks.extend(chunks)
+                            
+                            state.chunks = all_chunks
+                            state.step = "chunked"
+                            st.session_state.state_manager.save_state(state)
+                            
+                            st.success(f"✅ Created {len(all_chunks)} chunks")
+                            
+                            # Show chunk statistics
+                            chunk_types = {}
+                            for chunk in all_chunks:
+                                chunk_type = chunk.metadata.get('chunk_type', 'unknown')
+                                chunk_types[chunk_type] = chunk_types.get(chunk_type, 0) + 1
+                            
+                            st.json(chunk_types)
+                            
+                        except Exception as e:
+                            state.step = "error"
+                            st.error(f"❌ Error creating chunks: {e}")
+            
+            with col3:
+                if st.button("💾 Store in VectorDB", disabled=state.step != "chunked"):
+                    with st.spinner("Storing chunks in vector database..."):
+                        try:
+                            state.step = "storing"
+                            
+                            # Initialize RAG system if not already done
+                            if not st.session_state.rag_system.embeddings:
+                                if not st.session_state.rag_system.initialize():
+                                    st.error("❌ Failed to initialize RAG system")
+                                    state.step = "error"
+                                    return
+                            
+                            # Add documents to vector store
+                            if st.session_state.rag_system.add_documents(state.chunks):
+                                state.vector_store_created = True
+                                state.step = "stored"
+                                st.session_state.state_manager.save_state(state)
+                                st.success(f"✅ Stored {len(state.chunks)} chunks in vector database")
+                            else:
+                                st.error("❌ Failed to store documents")
+                                state.step = "error"
+                                
+                        except Exception as e:
+                            state.step = "error"
+                            st.error(f"❌ Error storing in vector database: {e}")
+        
+        # Processing history
+        if state.processing_history:
+            st.subheader("Processing History")
+            df = pd.DataFrame(state.processing_history)
+            st.dataframe(df)
+    
+    # Tab 2: Knowledge Libraries
+    with tabs[1]:
+        st.header("Knowledge Libraries")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.subheader("📋 Error Pattern Library")
+            st.markdown("Common Cisco IOS configuration errors and solutions")
+            
+            if st.button("Load Error Pattern Library", disabled=state.error_patterns_loaded):
+                with st.spinner("Loading error patterns..."):
+                    try:
+                        # Create error pattern documents
+                        error_docs = KnowledgeLibraryBuilder.create_error_pattern_library()
+                        
+                        # Initialize RAG system if needed
+                        if not st.session_state.rag_system.embeddings:
+                            if not st.session_state.rag_system.initialize():
+                                st.error("❌ Failed to initialize RAG system")
+                                return
+                        
+                        # Add to vector store
+                        if st.session_state.rag_system.add_documents(error_docs):
+                            state.error_patterns_loaded = True
+                            st.session_state.state_manager.save_state(state)
+                            st.success(f"✅ Loaded {len(error_docs)} error patterns")
+                        else:
+                            st.error("❌ Failed to load error patterns")
+                            
+                    except Exception as e:
+                        st.error(f"❌ Error loading error patterns: {e}")
+            
+            # Display sample error patterns
+            if st.checkbox("Show Error Pattern Examples"):
+                error_docs = KnowledgeLibraryBuilder.create_error_pattern_library()
+                for i, doc in enumerate(error_docs[:3]):
+                    with st.expander(f"Error Pattern {i+1}"):
+                        st.text(doc.page_content)
+        
+        with col2:
+            st.subheader("📚 Best Practices Library")
+            st.markdown("Cisco IOS configuration best practices")
+            
+            if st.button("Load Best Practices Library", disabled=state.best_practices_loaded):
+                with st.spinner("Loading best practices..."):
+                    try:
+                        # Create best practices documents
+                        practice_docs = KnowledgeLibraryBuilder.create_best_practices_library()
+                        
+                        # Initialize RAG system if needed
+                        if not st.session_state.rag_system.embeddings:
+                            if not st.session_state.rag_system.initialize():
+                                st.error("❌ Failed to initialize RAG system")
+                                return
+                        
+                        # Add to vector store
+                        if st.session_state.rag_system.add_documents(practice_docs):
+                            state.best_practices_loaded = True
+                            st.session_state.state_manager.save_state(state)
+                            st.success(f"✅ Loaded {len(practice_docs)} best practices")
+                        else:
+                            st.error("❌ Failed to load best practices")
+                            
+                    except Exception as e:
+                        st.error(f"❌ Error loading best practices: {e}")
+            
+            # Display sample best practices
+            if st.checkbox("Show Best Practice Examples"):
+                practice_docs = KnowledgeLibraryBuilder.create_best_practices_library()
+                for i, doc in enumerate(practice_docs[:3]):
+                    with st.expander(f"Best Practice {i+1}"):
+                        st.text(doc.page_content)
+    
+    # Tab 3: Query System
+    with tabs[2]:
+        st.header("Query RAG System")
+        
+        # Check if system is ready
+        if not state.vector_store_created and not state.error_patterns_loaded and not state.best_practices_loaded:
+            st.warning("⚠️ Please process documents or load knowledge libraries first")
+        else:
+            # Initialize RAG system if needed
+            if not st.session_state.rag_system.embeddings:
+                with st.spinner("Initializing RAG system..."):
+                    if st.session_state.rag_system.initialize():
+                        st.success("✅ RAG system initialized")
+                    else:
+                        st.error("❌ Failed to initialize RAG system")
+                        return
+            
+            # Query interface
+            query = st.text_area(
+                "Enter your question about Cisco IOS:",
+                placeholder="e.g., How do I configure VLAN trunking? What causes '% Invalid input detected' error?",
+                height=100
+            )
+            
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                search_button = st.button("🔍 Search", type="primary")
+            with col2:
+                clear_button = st.button("🗑️ Clear")
+            
+            if clear_button:
+                st.rerun()
+            
+            if search_button and query:
+                with st.spinner("Searching knowledge base..."):
+                    try:
+                        # Query the RAG system
+                        result = st.session_state.rag_system.query(query)
+                        
+                        # Display answer
+                        st.subheader("Answer:")
+                        st.write(result["answer"])
+                        
+                        # Display source documents
+                        if result["source_documents"]:
+                            st.subheader("Source Documents:")
+                            for i, doc in enumerate(result["source_documents"]):
+                                with st.expander(f"Source {i+1} - {doc.metadata.get('source', 'Unknown')}"):
+                                    st.write(f"**Page:** {doc.metadata.get('page', 'N/A')}")
+                                    st.write(f"**Type:** {doc.metadata.get('type', 'document')}")
+                                    st.write(f"**Chunk Type:** {doc.metadata.get('chunk_type', 'standard')}")
+                                    st.text(doc.page_content[:500] + "..." if len(doc.page_content) > 500 else doc.page_content)
+                        
+                        # Add to processing history
+                        state.processing_history.append({
+                            'timestamp': datetime.now().isoformat(),
+                            'action': 'query',
+                            'query': query,
+                            'sources_found': len(result["source_documents"])
+                        })
+                        st.session_state.state_manager.save_state(state)
+                        
+                    except Exception as e:
+                        st.error(f"❌ Error processing query: {e}")
+            
+            # Query examples
+            st.subheader("Example Queries:")
+            example_queries = [
+                "How do I configure a VLAN?",
+                "What causes 'Invalid input detected' error?",
+                "Show me best practices for password security",
+                "How to configure spanning tree protocol?",
+                "What is the syntax for the interface command?",
+                "How to troubleshoot duplicate IP address errors?",
+                "What are the best practices for NTP configuration?",
+                "How to implement port security?"
+            ]
+            
+            cols = st.columns(2)
+            for i, example in enumerate(example_queries):
+                with cols[i % 2]:
+                    if st.button(example, key=f"example_{i}"):
+                        st.session_state.query_text = example
+                        st.rerun()
+    
+    # Tab 4: Analytics
+    with tabs[3]:
+        st.header("System Analytics")
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric("Total Chunks", len(state.chunks) if state.chunks else 0)
+            st.metric("Error Patterns", "10" if state.error_patterns_loaded else "0")
+            st.metric("Best Practices", "10" if state.best_practices_loaded else "0")
+        
+        with col2:
+            st.metric("Total Queries", len([h for h in state.processing_history if h.get('action') == 'query']))
+            st.metric("Vector Store Status", "Active" if state.vector_store_created else "Inactive")
+            st.metric("Last Activity", state.last_checkpoint.strftime('%H:%M:%S') if state.last_checkpoint else "N/A")
+        
+        with col3:
+            # Memory usage estimation
+            if state.chunks:
+                avg_chunk_size = sum(len(c.page_content) for c in state.chunks) / len(state.chunks)
+                estimated_memory = (avg_chunk_size * len(state.chunks)) / (1024 * 1024)  # MB
+                st.metric("Estimated Memory Usage", f"{estimated_memory:.2f} MB")
+            else:
+                st.metric("Estimated Memory Usage", "0 MB")
+        
+        # Chunk distribution
+        if state.chunks:
+            st.subheader("Chunk Analysis")
+            
+            # Chunk type distribution
+            chunk_types = {}
+            for chunk in state.chunks:
+                chunk_type = chunk.metadata.get('chunk_type', 'unknown')
+                chunk_types[chunk_type] = chunk_types.get(chunk_type, 0) + 1
+            
+            df_types = pd.DataFrame(list(chunk_types.items()), columns=['Type', 'Count'])
+            st.bar_chart(df_types.set_index('Type'))
+            
+            # Page distribution
+            page_dist = {}
+            for chunk in state.chunks:
+                page = chunk.metadata.get('page', 0)
+                page_dist[page] = page_dist.get(page, 0) + 1
+            
+            if len(page_dist) > 1:
+                st.subheader("Chunks per Page")
+                df_pages = pd.DataFrame(list(page_dist.items()), columns=['Page', 'Chunks'])
+                st.line_chart(df_pages.set_index('Page'))
+        
+        # Query history visualization
+        if state.processing_history:
+            query_history = [h for h in state.processing_history if h.get('action') == 'query']
+            if query_history:
+                st.subheader("Query History")
+                df_queries = pd.DataFrame(query_history)
+                st.dataframe(df_queries[['timestamp', 'query', 'sources_found']])
+
+if __name__ == "__main__":
+    main()
